@@ -14,6 +14,6 @@ jobs:
         with:
           python-version: "3.12"
       # Only what the tests import; torch is too heavy to install on every run
-      - run: pip install $(grep -E '^pandas==' requirements.txt) -r requirements-dev.txt
+      - run: pip install $(grep -E '^(pandas|scikit-learn)==' requirements.txt) -r requirements-dev.txt
       - run: ruff check .
       - run: python -m pytest

@@ -8,6 +8,13 @@ RAW_DIR = Path(__file__).resolve().parent.parent / "data" / "elliptic" / "raw"
 # Elliptic encodes illicit as "1", licit as "2"; we use 1 = illicit, 0 = licit, -1 = unlabeled
 LABEL_MAP = {"1": 1, "2": 0, "unknown": -1}
 
+# f0-f92 describe the transaction itself; f93-f164 are Elliptic's one-hop neighbour
+# summaries, so "all" already carries some graph information
+FEATURE_SETS = {
+    "local": [f"f{i}" for i in range(93)],
+    "all": [f"f{i}" for i in range(165)],
+}
+
 
 def load_elliptic(raw_dir: Path = RAW_DIR) -> tuple[pd.DataFrame, pd.DataFrame]:
     features = pd.read_csv(raw_dir / "elliptic_txs_features.csv", header=None)

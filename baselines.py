@@ -1,4 +1,5 @@
-# Step 3: logistic regression and XGBoost baselines on local vs all features.
+# Step 3: logistic regression and XGBoost baselines on local vs all features,
+# with and without class weights.
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import make_pipeline
@@ -22,19 +23,18 @@ masks = temporal_masks(txs)
 y = {split: txs.loc[mask, "label"].to_numpy() for split, mask in masks.items()}
 licit_per_illicit = (y["train"] == 0).sum() / (y["train"] == 1).sum()
 
-rows = []
-for feature_set, columns in FEATURE_SETS.items():
-    X = {split: txs.loc[mask, columns] for split, mask in masks.items()}
 
+def fit_models(X: dict, weighted: bool) -> dict:
     # The scaler sits inside the pipeline so it is fit on train only
     logreg = make_pipeline(
-        StandardScaler(), LogisticRegression(class_weight="balanced", max_iter=1000)
+        StandardScaler(),
+        LogisticRegression(class_weight="balanced" if weighted else None, max_iter=1000),
     )
     logreg.fit(X["train"], y["train"])
 
     xgb = XGBClassifier(
         objective="binary:logistic",
-        scale_pos_weight=licit_per_illicit,
+        scale_pos_weight=licit_per_illicit if weighted else 1,
         n_estimators=500,
         learning_rate=0.1,
         max_depth=6,
@@ -42,15 +42,22 @@ for feature_set, columns in FEATURE_SETS.items():
     )
     # Trees are built from train only; val log loss just decides when to stop adding them
     xgb.fit(X["train"], y["train"], eval_set=[(X["val"], y["val"])], verbose=False)
+    return {"LR": logreg, "XGB": xgb}
 
-    for model_name, model in {"LR": logreg, "XGB": xgb}.items():
-        # Column 1 is P(illicit)
-        val_prob = model.predict_proba(X["val"])[:, 1]
-        test_prob = model.predict_proba(X["test"])[:, 1]
-        # Val only chooses the threshold; test is scored once at each threshold
-        for threshold in (0.5, best_f1_threshold(y["val"], val_prob)):
-            metrics = illicit_metrics(y["test"], test_prob, threshold)
-            rows.append({"model": model_name, "features": feature_set, **metrics})
 
-print(f"XGB trees kept after early stopping (all features): {xgb.best_iteration + 1}")
+rows = []
+for feature_set, columns in FEATURE_SETS.items():
+    X = {split: txs.loc[mask, columns] for split, mask in masks.items()}
+    for weighted in (True, False):
+        for model_name, model in fit_models(X, weighted).items():
+            # Column 1 is P(illicit)
+            val_prob = model.predict_proba(X["val"])[:, 1]
+            test_prob = model.predict_proba(X["test"])[:, 1]
+            # Val only chooses the threshold; test is scored once at each threshold
+            for threshold in (0.5, best_f1_threshold(y["val"], val_prob)):
+                metrics = illicit_metrics(y["test"], test_prob, threshold)
+                rows.append(
+                    {"model": model_name, "features": feature_set, "weighted": weighted, **metrics}
+                )
+
 print(pd.DataFrame(rows).round(3).to_string(index=False))

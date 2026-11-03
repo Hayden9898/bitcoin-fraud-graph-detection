@@ -5,16 +5,9 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from xgboost import XGBClassifier
 
-from src.data import load_elliptic
+from src.data import FEATURE_SETS, load_elliptic
 from src.metrics import best_f1_threshold, illicit_metrics
 from src.split import temporal_masks
-
-# f0-f92 describe the transaction itself; f93-f164 are Elliptic's one-hop neighbour
-# summaries, so "all" already carries some graph information
-FEATURE_SETS = {
-    "local": [f"f{i}" for i in range(93)],
-    "all": [f"f{i}" for i in range(165)],
-}
 
 txs, _ = load_elliptic()
 masks = temporal_masks(txs)
